@@ -94,8 +94,8 @@ def example_different_models():
     
     agent = ReflectionPatternAgent(
         google_api_key=GOOGLE_API_KEY,
-        main_model="gemini-pro",
-        reflection_model="gemini-pro",
+        main_model="gemini-2.0-flash",
+        reflection_model="gemini-2.0-pro-exp-02-05",
         verbose=True
     )
     
@@ -155,26 +155,26 @@ def example_full_conversation_history():
     
     return result
 
-def example_error_handling():
-    """Example demonstrating error handling capabilities."""
-    print("\n=== Error Handling Example ===\n")
+# def example_error_handling():
+#     """Example demonstrating error handling capabilities."""
+#     print("\n=== Error Handling Example ===\n")
     
-    # Use a non-existent model to trigger fallback behavior
-    agent = ReflectionPatternAgent(
-        google_api_key=GOOGLE_API_KEY,
-        main_model="non-existent-model",
-        verbose=True
-    )
+#     # Use a non-existent model to trigger fallback behavior
+#     agent = ReflectionPatternAgent(
+#         google_api_key=GOOGLE_API_KEY,
+#         main_model="non-existent-model",
+#         verbose=True
+#     )
     
-    query = "What is the significance of quantum computing?"
-    print(f"Query: {query}\n")
+#     query = "What is the significance of quantum computing?"
+#     print(f"Query: {query}\n")
     
-    result = agent.run(query)
+#     result = agent.run(query)
     
-    print(f"Final response with fallback handling:\n")
-    print(result["response"])
+#     print(f"Final response with fallback handling:\n")
+#     print(result["response"])
     
-    return result
+#     return result
 
 def example_with_batches():
     """Example processing multiple queries in batch."""
@@ -198,7 +198,7 @@ def example_with_batches():
         print(f"\nQuery {i+1}: {query}")
         result = agent.run(query)
         results.append(result)
-        print(f"Response {i+1} (after {result['iterations']} iterations):\n{result['response'][:150]}...\n")
+        print(f"Response {i+1} (after {result['iterations']} iterations):\n{result['response']}...\n")
     
     return results
 
@@ -236,6 +236,5 @@ if __name__ == "__main__":
     # example_different_models()
     # example_complex_query()
     # example_full_conversation_history()
-    # example_error_handling()
     # example_with_batches()
     # example_tuning_parameters()
