@@ -1,19 +1,20 @@
-import time
-from langchain_google_genai import ChatGoogleGenerativeAI
+"""
+Core implementation of the Reflection Pattern Agent.
+"""
+import os
 from typing import List, Dict, Any, Optional
 import logging
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
-from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import MessageGraph, END
+from langsmith import Client
 
 # Import the new modular components
-from generate import generate_response
-from reflect import evaluate_response
-from utils import initialize_llm, get_default_system_prompts, logger, call_with_retry
+from src.core.generate import generate_response
+from src.core.reflect import evaluate_response
+from src.utils.utils import initialize_llm, get_default_system_prompts, logger
 
 # Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(asctime)s - %(message)s')
 
 class ReflectionPatternAgent:
     def __init__(
@@ -26,7 +27,10 @@ class ReflectionPatternAgent:
         reflection_system_prompt: Optional[str] = None,
         verbose: bool = False,
         retry_delay: float = 2.0,
-        max_retries: int = 3
+        max_retries: int = 3,
+        use_langsmith: bool = False,
+        langsmith_api_key: Optional[str] = None,
+        langsmith_project: str = "reflection-pattern-agent"
     ):
         """Initialize the Reflection Pattern Agent with improved error handling."""
         self.max_iterations = max_iterations
@@ -52,31 +56,27 @@ class ReflectionPatternAgent:
         self.main_system_message = SystemMessage(content=main_system_prompt)
         self.reflection_system_prompt = reflection_system_prompt
         
+        # Initialize LangSmith client if enabled
+        self.use_langsmith = use_langsmith
+        self.langsmith_project = langsmith_project
+        if use_langsmith:
+            if langsmith_api_key:
+                os.environ["LANGCHAIN_API_KEY"] = langsmith_api_key
+            elif "LANGCHAIN_API_KEY" not in os.environ:
+                logger.warning("LangSmith enabled but no API key provided. Set LANGCHAIN_API_KEY environment variable.")
+                self.use_langsmith = False
+            
+            if self.use_langsmith:
+                try:
+                    self.langsmith_client = Client()
+                    if verbose:
+                        logger.info("Successfully initialized LangSmith client")
+                except Exception as e:
+                    logger.warning(f"Failed to initialize LangSmith client: {str(e)}")
+                    self.use_langsmith = False
+        
         # Initialize the message graph
         self._create_graph()
-
-    def _call_with_retry(self, llm_call, messages, max_retries=None):
-        """Helper method to retry LLM calls with exponential backoff"""
-        if max_retries is None:
-            max_retries = self.max_retries
-            
-        retries = 0
-        while retries <= max_retries:
-            try:
-                return llm_call(messages)
-            except Exception as e:
-                retries += 1
-                if retries > max_retries:
-                    raise
-                
-                # Exponential backoff with jitter
-                delay = self.retry_delay * (2 ** (retries - 1)) * (0.5 + 0.5 * (hash(str(e)) % 100) / 100)
-                
-                if self.verbose:
-                    logger.warning(f"API call failed (attempt {retries}/{max_retries}): {str(e)}")
-                    logger.info(f"Retrying in {delay:.2f} seconds")
-                
-                time.sleep(delay)
     
     def generate(self, messages: List[BaseMessage]) -> List[BaseMessage]:
         """Generate a response with robust error handling"""
@@ -143,7 +143,21 @@ class ReflectionPatternAgent:
         builder.add_conditional_edges("generate", should_continue)
         builder.add_conditional_edges("reflect", should_continue)
         
-        self.graph = builder.compile()
+        # Configure LangSmith tracing if enabled
+        if self.use_langsmith:
+            # In newer versions of LangGraph, LangSmith config is handled via environment variables
+            # and the project name can be set when running the graph
+            os.environ["LANGCHAIN_TRACING_V2"] = "true"
+            os.environ["LANGCHAIN_PROJECT"] = self.langsmith_project
+            
+            # Compile without passing langsmith_config directly
+            self.graph = builder.compile()
+            
+            if self.verbose:
+                logger.info(f"LangSmith tracing enabled for project: {self.langsmith_project}")
+        else:
+            # If LangSmith is not enabled, just compile without any config
+            self.graph = builder.compile()
     
     def run(self, query: str) -> Dict[str, Any]:
         """Run the agent with comprehensive error handling"""

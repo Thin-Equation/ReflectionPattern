@@ -1,6 +1,6 @@
 // src/components/ResponseDisplay.tsx
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 //import { FaCopy } from 'react-icons/fa';
 import styled from 'styled-components';
 import { AgentResponse } from '../types';
@@ -21,6 +21,52 @@ const ResponseDisplay: React.FC<ResponseDisplayProps> = ({ response }) => {
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  // Group messages by iteration for better visualization
+  const getMessagesByIteration = () => {
+    const iterations: { [key: number]: Array<any> } = {};
+    let currentIteration = 1;
+    let messageType = '';
+    
+    response.messages.forEach((message, i) => {
+      // Skip the initial system message
+      if (i === 0 && message.type === 'system') return;
+      
+      // New iteration starts with human query or after feedback
+      if (message.type === 'human') {
+        if (i > 1) {
+          if (message.content.includes('feedback')) {
+            // This is feedback, part of the previous iteration
+            iterations[currentIteration].push(message);
+          } else {
+            // This is a new query, start a new iteration
+            currentIteration = 1;
+            iterations[currentIteration] = [message];
+          }
+        } else {
+          // First human message
+          iterations[currentIteration] = [message];
+        }
+      } else {
+        // Add AI message to current iteration
+        if (!iterations[currentIteration]) {
+          iterations[currentIteration] = [];
+        }
+        iterations[currentIteration].push(message);
+        
+        // If this is an AI response after feedback, increment iteration counter for next
+        if (messageType === 'human' && message.type === 'ai') {
+          currentIteration++;
+        }
+      }
+      
+      messageType = message.type;
+    });
+    
+    return iterations;
+  };
+
+  const iterationGroups = getMessagesByIteration();
 
   return (
     <Container
@@ -50,7 +96,7 @@ const ResponseDisplay: React.FC<ResponseDisplayProps> = ({ response }) => {
         animate={{ opacity: 1 }}
         transition={{ delay: 0.3, duration: 0.5 }}
       >
-        <p>{response.response}</p>
+        <ResponseText>{response.response}</ResponseText>
       </Content>
 
       <ToggleButton
@@ -61,23 +107,32 @@ const ResponseDisplay: React.FC<ResponseDisplayProps> = ({ response }) => {
         {showIterations ? "Hide Reflection Process" : "Show Reflection Process"}
       </ToggleButton>
 
-      <AnimatePresence>
-        {showIterations && (
-          <IterationsContainer
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <IterationsTitle>Reflection Process</IterationsTitle>
-            <MessageList>
-              {response.messages.map((message, index) => (
-                <MessageItem key={index} message={message} index={index} />
-              ))}
-            </MessageList>
-          </IterationsContainer>
-        )}
-      </AnimatePresence>
+      {showIterations && (
+        <IterationsContainer
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <IterationsTitle>Reflection Process</IterationsTitle>
+          
+          {Object.entries(iterationGroups).map(([iteration, messages]) => (
+            <IterationGroup key={iteration}>
+              <IterationHeader>Iteration {iteration}</IterationHeader>
+              <MessageList>
+                {messages.map((message, index) => (
+                  <MessageItem 
+                    key={index} 
+                    message={message} 
+                    index={index} 
+                    isReflection={message.content?.includes('feedback') || message.content?.includes('critique')}
+                  />
+                ))}
+              </MessageList>
+            </IterationGroup>
+          ))}
+        </IterationsContainer>
+      )}
     </Container>
   );
 };
@@ -165,6 +220,10 @@ const Content = styled(motion.div)`
   line-height: 1.8;
 `;
 
+const ResponseText = styled.div`
+  white-space: pre-wrap;
+`;
+
 const ToggleButton = styled(motion.button)`
   margin-top: 1.5rem;
   background-color: transparent;
@@ -188,6 +247,23 @@ const IterationsContainer = styled(motion.div)`
 const IterationsTitle = styled.h3`
   margin-bottom: 1rem;
   color: var(--primary-color);
+  font-size: 1.2rem;
+`;
+
+const IterationGroup = styled.div`
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background-color: rgba(108, 92, 231, 0.05);
+  border-radius: var(--border-radius);
+  border-left: 3px solid var(--primary-color);
+`;
+
+const IterationHeader = styled.h4`
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px dashed rgba(108, 92, 231, 0.2);
 `;
 
 const MessageList = styled.div`

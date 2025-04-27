@@ -9,15 +9,21 @@ interface QueryFormProps {
   setPrompt: (prompt: string) => void;
   handleSubmit: (e: React.FormEvent) => Promise<void>;
   loading: boolean;
+  disabled?: boolean;
 }
 
-const QueryForm: React.FC<QueryFormProps> = ({ prompt, setPrompt, handleSubmit, loading }) => {
+const QueryForm: React.FC<QueryFormProps> = ({ prompt, setPrompt, handleSubmit, loading, disabled = false }) => {
   return (
     <FormContainer
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: 0.2, duration: 0.5 }}
     >
+      {disabled && (
+        <DisabledOverlay>
+          Server connection required to use the agent
+        </DisabledOverlay>
+      )}
       <Form onSubmit={handleSubmit}>
         <TextareaContainer>
           <Textarea
@@ -25,23 +31,25 @@ const QueryForm: React.FC<QueryFormProps> = ({ prompt, setPrompt, handleSubmit, 
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Enter your query here..."
             rows={3}
+            disabled={disabled}
           />
           <MicButton
             type="button"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             title="Voice input"
+            disabled={disabled}
           >
           </MicButton>
         </TextareaContainer>
         
         <SubmitButton 
           type="submit" 
-          disabled={loading || !prompt.trim()}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          disabled={loading || !prompt.trim() || disabled}
+          whileHover={{ scale: disabled ? 1.0 : 1.05 }}
+          whileTap={{ scale: disabled ? 1.0 : 0.95 }}
         >
-          {loading ? "Processing..." : "Submit Query"}
+          {loading ? "Processing..." : disabled ? "Server Disconnected" : "Submit Query"}
         </SubmitButton>
       </Form>
     </FormContainer>
@@ -56,6 +64,23 @@ const FormContainer = styled(motion.div)`
   box-shadow: var(--shadow);
   margin-bottom: 2rem;
   transition: var(--transition);
+  position: relative;
+`;
+
+const DisabledOverlay = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--border-radius);
+  font-weight: 500;
+  color: var(--text-secondary);
+  z-index: 5;
 `;
 
 const Form = styled.form`
@@ -85,6 +110,11 @@ const Textarea = styled.textarea`
     border-color: var(--primary-color);
     box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.2);
   }
+
+  &:disabled {
+    background-color: rgba(150, 150, 150, 0.1);
+    cursor: not-allowed;
+  }
 `;
 
 const MicButton = styled(motion.button)`
@@ -102,6 +132,11 @@ const MicButton = styled(motion.button)`
   padding: 0.5rem;
   border-radius: 50%;
   transition: var(--transition);
+
+  &:disabled {
+    color: rgba(108, 92, 231, 0.4);
+    cursor: not-allowed;
+  }
 `;
 
 const SubmitButton = styled(motion.button)`

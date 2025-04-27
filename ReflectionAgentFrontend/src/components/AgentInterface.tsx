@@ -1,13 +1,13 @@
 // src/components/AgentInterface.tsx
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-//import { FaSun, FaMoon } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import styled from 'styled-components';
-import { queryAgent } from '../services/api';
+import { queryAgent, checkServerHealth } from '../services/api';
 import { AgentResponse } from '../types';
 import QueryForm from './QueryForm';
 import ResponseDisplay from './ResponseDisplay';
 import LoadingIndicator from './LoadingIndicator';
+import IconComponent from './IconComponent';
 
 interface AgentInterfaceProps {
   isDarkMode: boolean;
@@ -19,6 +19,32 @@ const AgentInterface: React.FC<AgentInterfaceProps> = ({ isDarkMode, toggleDarkM
   const [response, setResponse] = useState<AgentResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [serverStatus, setServerStatus] = useState<{status: string, config?: any} | null>(null);
+  const [serverChecking, setServerChecking] = useState<boolean>(true);
+
+  // Check server health on component mount
+  useEffect(() => {
+    const checkServer = async () => {
+      try {
+        setServerChecking(true);
+        const status = await checkServerHealth();
+        setServerStatus(status);
+        setError(null);
+      } catch (err) {
+        setServerStatus(null);
+        setError('Cannot connect to the Reflection Agent server. Please make sure it is running.');
+      } finally {
+        setServerChecking(false);
+      }
+    };
+
+    checkServer();
+    
+    // Set up periodic health checks
+    const intervalId = setInterval(checkServer, 60000); // Check every minute
+    
+    return () => clearInterval(intervalId);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
@@ -32,8 +58,8 @@ const AgentInterface: React.FC<AgentInterfaceProps> = ({ isDarkMode, toggleDarkM
     try {
       const result = await queryAgent(prompt);
       setResponse(result);
-    } catch (err) {
-      setError('An error occurred while processing your request. Please try again.');
+    } catch (err: any) {
+      setError(err.message || 'An error occurred while processing your request. Please try again.');
       console.error('Error querying agent:', err);
     } finally {
       setLoading(false);
@@ -47,6 +73,10 @@ const AgentInterface: React.FC<AgentInterfaceProps> = ({ isDarkMode, toggleDarkM
         whileTap={{ scale: 0.9 }}
         onClick={toggleDarkMode}
       >
+        {isDarkMode ? 
+          <IconComponent name="sun" size={20} /> : 
+          <IconComponent name="moon" size={20} />
+        }
       </ThemeToggle>
       
       <Header
@@ -57,36 +87,60 @@ const AgentInterface: React.FC<AgentInterfaceProps> = ({ isDarkMode, toggleDarkM
         <Title>
           <GradientText>AI Reflection Agent</GradientText>
         </Title>
-        <Subtitle>Powered by Reflection Pattern & Google Generative AI</Subtitle>
+        <Subtitle>Powered by LangChain, LangGraph, LangSmith & Google Gemini</Subtitle>
       </Header>
+
+      {serverChecking && (
+        <ServerChecking
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          Checking server connection...
+        </ServerChecking>
+      )}
 
       <QueryForm 
         prompt={prompt} 
         setPrompt={setPrompt} 
         handleSubmit={handleSubmit} 
-        loading={loading} 
+        loading={loading}
+        disabled={serverStatus?.status !== "Server is running" || serverChecking}
       />
 
-      <AnimatePresence>
-        {loading && <LoadingIndicator />}
-      </AnimatePresence>
+      {loading && <LoadingIndicator />}
 
-      <AnimatePresence>
-        {error && (
-          <ErrorMessage
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
-          >
-            {error}
-          </ErrorMessage>
-        )}
-      </AnimatePresence>
+      {error && (
+        <ErrorMessage
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3 }}
+        >
+          {error}
+        </ErrorMessage>
+      )}
 
-      <AnimatePresence>
-        {response && <ResponseDisplay response={response} />}
-      </AnimatePresence>
+      {response && <ResponseDisplay response={response} />}
+      
+      {(serverStatus || serverChecking) && (
+        <ConfigInfo>
+          {serverStatus && (
+            <ServerStatusRow>
+              <ServerStatusIndicator status={serverStatus.status === "Server is running"} />
+              <div>
+                {serverStatus.status === "Server is running" ? "Server Connected" : "Server Disconnected"}
+              </div>
+            </ServerStatusRow>
+          )}
+          {serverStatus?.config && (
+            <>
+              <div>Max iterations: {serverStatus.config.max_iterations}</div>
+              <div>LangSmith tracing: {serverStatus.config.use_langsmith ? 'Enabled' : 'Disabled'}</div>
+            </>
+          )}
+        </ConfigInfo>
+      )}
     </Container>
   );
 };
@@ -123,6 +177,7 @@ const Header = styled(motion.div)`
   text-align: center;
   margin-bottom: 2rem;
   padding-top: 1rem;
+  position: relative;
 `;
 
 const Title = styled.h1`
@@ -150,6 +205,40 @@ const ErrorMessage = styled(motion.div)`
   border-radius: var(--border-radius);
   margin-bottom: 1rem;
   border-left: 4px solid #c62828;
+`;
+
+const ServerChecking = styled(motion.div)`
+  text-align: center;
+  margin-bottom: 1rem;
+  font-style: italic;
+  color: var(--text-secondary);
+`;
+
+const ConfigInfo = styled.div`
+  margin-top: 1rem;
+  padding: 1rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  text-align: center;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`;
+
+const ServerStatusRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+`;
+
+const ServerStatusIndicator = styled.div<{ status: boolean }>`
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: ${props => props.status ? '#4caf50' : '#f44336'};
 `;
 
 export default AgentInterface;

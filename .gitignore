@@ -1,6 +1,47 @@
+# Python
 /ReflectionAgentBackend/.venv
-/__pycache__
+/ReflectionAgentBackend/venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.ruff_cache/
+
+# IDE
 /.vscode
+/.idea
 /.idx
-/ReflectionAgentBackend/__pycache__
+*.swp
+*.swo
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+*.env.*
+
+# React/Frontend
 /ReflectionAgentFrontend/node_modules
+/ReflectionAgentFrontend/.pnp
+/ReflectionAgentFrontend/.pnp.js
+/ReflectionAgentFrontend/coverage
+/ReflectionAgentFrontend/build
+/ReflectionAgentFrontend/.env.local
+/ReflectionAgentFrontend/.env.development.local
+/ReflectionAgentFrontend/.env.test.local
+/ReflectionAgentFrontend/.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# SSL Certificates (for dev)
+*.pem
